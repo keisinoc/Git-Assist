@@ -1,0 +1,18 @@
+{
+  "issues": []
+}
+```
+
+4. Click **"Commit new file"**
+
+---
+
+## **File #8: requirements.txt**
+
+1. Click **"Add file"** → **"Create new file"**
+
+2. **Filename**: `requirements.txt`
+
+3. **Paste this:**
+```
+requests>=2.31.0

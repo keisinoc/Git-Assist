@@ -133,8 +133,33 @@ class CryptoIssueMonitor:
 *Automatically imported and tracked by GitHub Support Infrastructure. Issue will be reviewed and assigned to the appropriate team for resolution.*
 """
         
-        # Create labels
-        labels = ['auto-detected', 'crypto', f'source:{source_repo.split("/")[0]}']
+        # Create smart labels based on issue content
+labels = ['auto-detected']
+
+# Add issue-type label based on keywords
+title_lower = original_issue['title'].lower()
+body_lower = (original_issue.get('body', '') or '').lower()
+content = f"{title_lower} {body_lower}"
+
+if any(word in content for word in ['bug', 'error', 'broken', 'crash', 'failed']):
+    labels.append('bug')
+elif any(word in content for word in ['security', 'vulnerability', 'exploit', 'hack']):
+    labels.append('security')
+elif any(word in content for word in ['wallet', 'balance', 'account', 'private key', 'seed phrase']):
+    labels.append('wallet')
+elif any(word in content for word in ['transaction', 'swap', 'transfer', 'tx']):
+    labels.append('transaction')
+elif any(word in content for word in ['contract', 'smart contract', 'solidity']):
+    labels.append('contract')
+elif any(word in content for word in ['gas', 'fee']):
+    labels.append('gas-fee')
+elif any(word in content for word in ['help', 'question', 'how to']):
+    labels.append('help')
+else:
+    labels.append('general')
+
+# Add source repo
+labels.append(f'source:{source_repo.split("/")[0]}')
         
         payload = {
             'title': f"[AUTO] {original_issue['title']}",

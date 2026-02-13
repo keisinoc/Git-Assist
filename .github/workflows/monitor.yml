@@ -1,0 +1,51 @@
+name: Crypto Issue Monitor
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  
+  workflow_dispatch:  # Allow manual triggering
+  
+  push:
+    branches:
+      - main
+    paths:
+      - 'config.json'
+      - 'monitor_issues.py'
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+    
+    - name: Run Issue Monitor
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TARGET_REPO: ${{ github.repository }}
+        USE_GITHUB_SEARCH: 'false'
+      run: |
+        python monitor_issues.py
+    
+    - name: Commit processed issues tracking
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add processed_issues.json || true
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update processed issues [skip ci]"
+        git push || true

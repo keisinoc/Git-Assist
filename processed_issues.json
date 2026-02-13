@@ -1,13 +1,15 @@
 {
   "issues": [
-    "yjtsaie/support#183",
-    "MetaMask/metamask-extension#40116",
+    "MetaMask/metamask-mobile#25755",
+    "LedgerHQ/ledger-live#3948",
     "juanroyongji/Support#231",
-    "MetaMask/metamask-mobile#25934",
     "MetaMask/metamask-mobile#25927",
-    "MetaMask/metamask-extension#39507",
-    "juanroyongji/Support#228",
     "MetaMask/metamask-extension#40105",
-    "juanroyongji/Support#227"
+    "yjtsaie/support#183",
+    "MetaMask/metamask-extension#39507",
+    "juanroyongji/Support#227",
+    "MetaMask/metamask-extension#40116",
+    "juanroyongji/Support#228",
+    "MetaMask/metamask-mobile#25934"
   ]
 }

@@ -130,7 +130,7 @@ class CryptoIssueMonitor:
 
 ---
 
-*This issue was automatically detected and copied by the Crypto Issue Monitor Bot*
+*Automatically imported and tracked by GitHub Support Infrastructure. Issue will be reviewed and assigned to the appropriate team for resolution.*
 """
         
         # Create labels

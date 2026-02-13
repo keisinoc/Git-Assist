@@ -23,7 +23,7 @@ class CryptoIssueMonitor:
         }
         
         # Your repository where issues will be copied
-        self.target_repo = os.environ.get('TARGET_REPO')  # format: "username/repo-name"
+        self.target_repo = os.environ.get('TARGET_REPO')
         
         # Load configuration
         self.load_config()
@@ -82,7 +82,6 @@ class CryptoIssueMonitor:
             response = requests.get(url, headers=self.headers, params=params, timeout=10)
             if response.status_code == 200:
                 issues = response.json()
-                # Filter out pull requests (they appear in issues endpoint)
                 return [issue for issue in issues if 'pull_request' not in issue]
             else:
                 print(f"⚠️  Error fetching issues from {repo}: {response.status_code}")
@@ -92,15 +91,13 @@ class CryptoIssueMonitor:
             return []
     
     def matches_criteria(self, issue: Dict) -> bool:
-        """Check if issue matches our monitoring criteria - USES ALL YOUR KEYWORDS!"""
+        """Check if issue matches our monitoring criteria"""
         title = issue.get('title', '').lower()
         body = issue.get('body', '') or ''
         body = body.lower()
         
-        # Combine title and body for searching
         content = f"{title} {body}"
         
-        # Check if ANY of your 100+ keywords matches
         for keyword in self.keywords:
             if keyword.lower() in content:
                 return True
@@ -111,7 +108,6 @@ class CryptoIssueMonitor:
         """Create a copy of the issue in your target repository"""
         url = f'https://api.github.com/repos/{self.target_repo}/issues'
         
-        # Format the issue body with source information
         original_body = original_issue.get('body', '') or '*No description provided*'
         source_url = original_issue['html_url']
         source_user = original_issue['user']['login']
@@ -134,32 +130,30 @@ class CryptoIssueMonitor:
 """
         
         # Create smart labels based on issue content
-labels = ['auto-detected']
-
-# Add issue-type label based on keywords
-title_lower = original_issue['title'].lower()
-body_lower = (original_issue.get('body', '') or '').lower()
-content = f"{title_lower} {body_lower}"
-
-if any(word in content for word in ['bug', 'error', 'broken', 'crash', 'failed']):
-    labels.append('bug')
-elif any(word in content for word in ['security', 'vulnerability', 'exploit', 'hack']):
-    labels.append('security')
-elif any(word in content for word in ['wallet', 'balance', 'account', 'private key', 'seed phrase']):
-    labels.append('wallet')
-elif any(word in content for word in ['transaction', 'swap', 'transfer', 'tx']):
-    labels.append('transaction')
-elif any(word in content for word in ['contract', 'smart contract', 'solidity']):
-    labels.append('contract')
-elif any(word in content for word in ['gas', 'fee']):
-    labels.append('gas-fee')
-elif any(word in content for word in ['help', 'question', 'how to']):
-    labels.append('help')
-else:
-    labels.append('general')
-
-# Add source repo
-labels.append(f'source:{source_repo.split("/")[0]}')
+        labels = ['auto-detected']
+        
+        title_lower = original_issue['title'].lower()
+        body_lower = (original_issue.get('body', '') or '').lower()
+        content = f"{title_lower} {body_lower}"
+        
+        if any(word in content for word in ['bug', 'error', 'broken', 'crash', 'failed']):
+            labels.append('bug')
+        elif any(word in content for word in ['security', 'vulnerability', 'exploit', 'hack']):
+            labels.append('security')
+        elif any(word in content for word in ['wallet', 'balance', 'account', 'private key', 'seed phrase']):
+            labels.append('wallet')
+        elif any(word in content for word in ['transaction', 'swap', 'transfer', 'tx']):
+            labels.append('transaction')
+        elif any(word in content for word in ['contract', 'smart contract', 'solidity']):
+            labels.append('contract')
+        elif any(word in content for word in ['gas', 'fee']):
+            labels.append('gas-fee')
+        elif any(word in content for word in ['help', 'question', 'how to']):
+            labels.append('help')
+        else:
+            labels.append('general')
+        
+        labels.append(f'source:{source_repo.split("/")[0]}')
         
         payload = {
             'title': f"[AUTO] {original_issue['title']}",
@@ -186,7 +180,6 @@ labels.append(f'source:{source_repo.split("/")[0]}')
         print(f"🚀 Crypto Issue Monitor - {datetime.utcnow().isoformat()}")
         print(f"{'='*60}\n")
         
-        # Check rate limit
         remaining = self.check_rate_limit()
         if remaining < 100:
             print("⚠️  Low API rate limit. Waiting for reset...")
@@ -198,7 +191,6 @@ labels.append(f'source:{source_repo.split("/")[0]}')
         for repo in self.monitored_repos:
             print(f"\n📂 Checking repository: {repo}")
             
-            # Get recent issues
             issues = self.get_recent_issues(repo, since_minutes=self.check_interval_minutes + 5)
             
             if not issues:
@@ -210,25 +202,20 @@ labels.append(f'source:{source_repo.split("/")[0]}')
             for issue in issues:
                 issue_id = f"{repo}#{issue['number']}"
                 
-                # Skip if already processed
                 if issue_id in self.processed_issues:
                     continue
                 
-                # Check if matches criteria
                 if self.matches_criteria(issue):
                     total_issues_found += 1
                     print(f"   ✨ Match found: #{issue['number']} - {issue['title'][:50]}...")
                     
-                    # Create issue in target repo
                     created = self.create_issue_in_target_repo(issue, repo)
                     if created:
                         total_issues_created += 1
                         self.processed_issues.add(issue_id)
                 else:
-                    # Still mark as processed to avoid checking again
                     self.processed_issues.add(issue_id)
         
-        # Save processed issues
         self.save_processed_issues()
         
         print(f"\n{'='*60}")
@@ -239,14 +226,10 @@ labels.append(f'source:{source_repo.split("/")[0]}')
         print(f"{'='*60}\n")
     
     def search_github_for_crypto_issues(self, max_results: int = 30):
-        """Search ALL crypto repos by language - then filter with YOUR keywords!"""
+        """Search GitHub for crypto-related issues"""
         print(f"\n🔍 Searching GitHub for crypto issues...")
         
-        # Search for issues from last 5 days
         since_date = (datetime.utcnow() - timedelta(days=5)).strftime('%Y-%m-%d')
-        
-        # STRATEGY: Search broadly by language (covers ALL crypto projects)
-        # Then filter results using ALL your 100+ keywords!
         query = f'is:issue is:open created:>={since_date} language:solidity OR language:javascript wallet OR transaction OR bug OR error'
         
         url = 'https://api.github.com/search/issues'
@@ -266,13 +249,10 @@ labels.append(f'source:{source_repo.split("/")[0]}')
                 
                 created_count = 0
                 for issue in issues:
-                    # Extract repo name from URL
                     repo_url_parts = issue['repository_url'].split('/')
                     repo = f"{repo_url_parts[-2]}/{repo_url_parts[-1]}"
-                    
                     issue_id = f"{repo}#{issue['number']}"
                     
-                    # NOW filter using ALL your keywords!
                     if issue_id not in self.processed_issues and self.matches_criteria(issue):
                         print(f"   ✨ Match! {repo}: #{issue['number']} - {issue['title'][:40]}")
                         created = self.create_issue_in_target_repo(issue, repo)
@@ -280,15 +260,12 @@ labels.append(f'source:{source_repo.split("/")[0]}')
                             created_count += 1
                             self.processed_issues.add(issue_id)
                     else:
-                        # Mark as processed even if no match
                         self.processed_issues.add(issue_id)
                 
                 self.save_processed_issues()
                 print(f"   ✅ Created {created_count} new issues")
             else:
                 print(f"   ⚠️  Search failed: {response.status_code}")
-                if response.status_code == 422:
-                    print(f"   Query was: {query}")
         except Exception as e:
             print(f"   ⚠️  Search exception: {str(e)}")
 
@@ -297,14 +274,11 @@ def main():
     try:
         monitor = CryptoIssueMonitor()
         
-        # Choose monitoring strategy
         use_search = os.environ.get('USE_GITHUB_SEARCH', 'false').lower() == 'true'
         
         if use_search:
-            # Use GitHub search API (covers ALL repos, filters with ALL keywords)
             monitor.search_github_for_crypto_issues()
         else:
-            # Use direct repo monitoring (25 specific repos, ALL keywords)
             monitor.monitor_repositories()
         
         print("✅ Monitoring complete!\n")

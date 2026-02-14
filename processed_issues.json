@@ -1,19 +1,19 @@
 {
   "issues": [
-    "juanroyongji/Support#228",
-    "MetaMask/metamask-extension#40105",
-    "MetaMask/metamask-mobile#25767",
+    "yjtsaie/support#184",
+    "MetaMask/metamask-mobile#25927",
+    "MetaMask/metamask-mobile#25934",
+    "LedgerHQ/ledger-live#3948",
     "juanroyongji/Support#233",
     "MetaMask/metamask-extension#39507",
-    "MetaMask/metamask-mobile#25934",
-    "MetaMask/metamask-extension#40116",
-    "MetaMask/metamask-mobile#25927",
-    "yjtsaie/support#183",
-    "LedgerHQ/ledger-live#3948",
-    "MetaMask/metamask-mobile#25755",
-    "juanroyongji/Support#234",
     "juanroyongji/Support#231",
+    "juanroyongji/Support#234",
+    "MetaMask/metamask-mobile#25755",
+    "yjtsaie/support#183",
+    "MetaMask/metamask-mobile#25767",
+    "juanroyongji/Support#228",
+    "MetaMask/metamask-extension#40116",
     "juanroyongji/Support#227",
-    "yjtsaie/support#184"
+    "MetaMask/metamask-extension#40105"
   ]
 }

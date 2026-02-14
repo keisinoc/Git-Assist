@@ -40,7 +40,7 @@ class CryptoIssueMonitor:
         # Load team assignments (Feature #3)
         self.team_assignments = config.get('team_assignments', {
             'wallet': ['@keisinoc'],
-            'security': ['@keisinoc'],
+            'security': ['@autumndss'],
             'bug': ['@keisinoc'],
             'transaction': ['@keisinoc'],
             'contract': ['@keisinoc'],

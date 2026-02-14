@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Crypto Issue Monitor Bot
-Monitors multiple crypto repositories and copies matching issues to your repo
+Crypto Issue Monitor Bot - Enhanced Edition
+Features: Priority Levels, Duplicate Detection, Auto-Assignment
 """
 
 import os
@@ -10,6 +10,7 @@ import time
 from datetime import datetime, timedelta
 import requests
 from typing import List, Dict, Set
+from difflib import SequenceMatcher
 
 class CryptoIssueMonitor:
     def __init__(self):
@@ -22,13 +23,8 @@ class CryptoIssueMonitor:
             'Accept': 'application/vnd.github.v3+json'
         }
         
-        # Your repository where issues will be copied
         self.target_repo = os.environ.get('TARGET_REPO')
-        
-        # Load configuration
         self.load_config()
-        
-        # Track already processed issues
         self.processed_issues = self.load_processed_issues()
     
     def load_config(self):
@@ -40,6 +36,18 @@ class CryptoIssueMonitor:
         self.keywords = config.get('keywords', [])
         self.topics = config.get('topics', [])
         self.check_interval_minutes = config.get('check_interval_minutes', 5)
+        
+        # Load team assignments (Feature #3)
+        self.team_assignments = config.get('team_assignments', {
+            'wallet': ['@keisinoc'],
+            'security': ['@keisinoc'],
+            'bug': ['@keisinoc'],
+            'transaction': ['@keisinoc'],
+            'contract': ['@keisinoc'],
+            'gas-fee': ['@keisinoc'],
+            'help': ['@keisinoc'],
+            'general': ['@keisinoc']
+        })
     
     def load_processed_issues(self) -> Set[str]:
         """Load list of already processed issues"""
@@ -95,77 +103,178 @@ class CryptoIssueMonitor:
         title = issue.get('title', '').lower()
         body = issue.get('body', '') or ''
         body = body.lower()
-        
         content = f"{title} {body}"
         
         for keyword in self.keywords:
             if keyword.lower() in content:
                 return True
-        
         return False
     
+    def detect_priority(self, issue: Dict) -> str:
+        """FEATURE #1: Detect priority level based on keywords"""
+        title = issue.get('title', '').lower()
+        body = (issue.get('body', '') or '').lower()
+        content = f"{title} {body}"
+        
+        # Critical priority keywords
+        if any(word in content for word in ['critical', 'urgent', 'emergency', 'security breach', 'exploit', 'hack', 'funds at risk', 'total loss']):
+            return 'priority-critical'
+        
+        # Urgent priority keywords
+        elif any(word in content for word in ['urgent', 'asap', 'immediately', 'cant access', 'locked out', 'lost funds']):
+            return 'priority-urgent'
+        
+        # High priority keywords
+        elif any(word in content for word in ['high', 'important', 'stuck', 'frozen', 'missing balance']):
+            return 'priority-high'
+        
+        # Low priority keywords
+        elif any(word in content for word in ['minor', 'low', 'suggestion', 'enhancement', 'feature request']):
+            return 'priority-low'
+        
+        # Default: Medium priority
+        else:
+            return 'priority-medium'
+    
+    def similarity(self, text1: str, text2: str) -> float:
+        """Calculate similarity between two texts"""
+        return SequenceMatcher(None, text1.lower(), text2.lower()).ratio()
+    
+    def check_for_duplicates(self, issue_title: str, issue_body: str) -> List[Dict]:
+        """FEATURE #4: Check for duplicate/similar issues in target repo"""
+        url = f'https://api.github.com/repos/{self.target_repo}/issues'
+        params = {
+            'state': 'open',
+            'per_page': 50,
+            'sort': 'created',
+            'direction': 'desc'
+        }
+        
+        try:
+            response = requests.get(url, headers=self.headers, params=params, timeout=10)
+            if response.status_code == 200:
+                existing_issues = response.json()
+                duplicates = []
+                
+                for existing in existing_issues:
+                    # Calculate title similarity
+                    title_similarity = self.similarity(issue_title, existing['title'])
+                    
+                    # If titles are 70%+ similar, it's likely a duplicate
+                    if title_similarity >= 0.7:
+                        duplicates.append({
+                            'number': existing['number'],
+                            'title': existing['title'],
+                            'url': existing['html_url'],
+                            'similarity': title_similarity
+                        })
+                
+                return duplicates
+            return []
+        except Exception as e:
+            print(f"   ⚠️  Error checking duplicates: {str(e)}")
+            return []
+    
+    def get_assignee_for_category(self, category: str) -> str:
+        """FEATURE #7: Get team member to assign based on issue category"""
+        assignees = self.team_assignments.get(category, self.team_assignments.get('general', []))
+        # Return first assignee (you can add rotation logic later)
+        return assignees[0] if assignees else None
+    
     def create_issue_in_target_repo(self, original_issue: Dict, source_repo: str):
-        """Create a copy of the issue in your target repository"""
+        """Create issue with enhanced features"""
         url = f'https://api.github.com/repos/{self.target_repo}/issues'
         
         original_body = original_issue.get('body', '') or '*No description provided*'
         source_url = original_issue['html_url']
         source_user = original_issue['user']['login']
+        issue_title = original_issue['title']
+        
+        # FEATURE #1: Detect priority
+        priority_label = self.detect_priority(original_issue)
+        print(f"   🎯 Priority: {priority_label}")
+        
+        # FEATURE #4: Check for duplicates
+        duplicates = self.check_for_duplicates(issue_title, original_body)
+        duplicate_section = ""
+        if duplicates:
+            print(f"   🔍 Found {len(duplicates)} similar issue(s)")
+            duplicate_section = "\n\n## ⚠️ Possible Duplicates Detected\n\n"
+            for dup in duplicates[:3]:  # Show max 3
+                duplicate_section += f"- #{dup['number']}: [{dup['title']}]({dup['url']}) (Similarity: {dup['similarity']:.0%})\n"
         
         new_body = f"""## 🔔 Auto-detected Issue from {source_repo}
 
 **Original Issue:** {source_url}  
 **Reported by:** @{source_user}  
-**Created:** {original_issue['created_at']}
+**Created:** {original_issue['created_at']}  
+**Priority:** `{priority_label}`
 
 ---
 
 ### Original Description:
 
 {original_body}
+{duplicate_section}
 
 ---
 
 *Automatically imported and tracked by GitHub Support Infrastructure. Issue will be reviewed and assigned to the appropriate team for resolution.*
 """
         
-        # Create smart labels based on issue content
+        # Create smart labels with priority
         labels = ['auto-detected']
         
-        title_lower = original_issue['title'].lower()
-        body_lower = (original_issue.get('body', '') or '').lower()
+        # Add priority label
+        labels.append(priority_label)
+        
+        # Add category label
+        title_lower = issue_title.lower()
+        body_lower = original_body.lower()
         content = f"{title_lower} {body_lower}"
         
+        category = 'general'
         if any(word in content for word in ['bug', 'error', 'broken', 'crash', 'failed']):
-            labels.append('bug')
+            category = 'bug'
         elif any(word in content for word in ['security', 'vulnerability', 'exploit', 'hack']):
-            labels.append('security')
+            category = 'security'
         elif any(word in content for word in ['wallet', 'balance', 'account', 'private key', 'seed phrase']):
-            labels.append('wallet')
+            category = 'wallet'
         elif any(word in content for word in ['transaction', 'swap', 'transfer', 'tx']):
-            labels.append('transaction')
+            category = 'transaction'
         elif any(word in content for word in ['contract', 'smart contract', 'solidity']):
-            labels.append('contract')
+            category = 'contract'
         elif any(word in content for word in ['gas', 'fee']):
-            labels.append('gas-fee')
+            category = 'gas-fee'
         elif any(word in content for word in ['help', 'question', 'how to']):
-            labels.append('help')
-        else:
-            labels.append('general')
+            category = 'help'
         
+        labels.append(category)
         labels.append(f'source:{source_repo.split("/")[0]}')
         
+        # Add duplicate label if found
+        if duplicates:
+            labels.append('possible-duplicate')
+        
+        # FEATURE #7: Get assignee for this category
+        assignee = self.get_assignee_for_category(category)
+        print(f"   👤 Assigned to: {assignee}")
+        
         payload = {
-            'title': f"[AUTO] {original_issue['title']}",
+            'title': f"[AUTO] {issue_title}",
             'body': new_body,
             'labels': labels
         }
+        
+        # Add assignee if available (remove @ symbol)
+        if assignee and assignee.startswith('@'):
+            payload['assignees'] = [assignee[1:]]
         
         try:
             response = requests.post(url, headers=self.headers, json=payload, timeout=10)
             if response.status_code == 201:
                 new_issue = response.json()
-                print(f"✅ Created issue #{new_issue['number']}: {original_issue['title'][:50]}...")
+                print(f"✅ Created issue #{new_issue['number']}: {issue_title[:50]}...")
                 return new_issue
             else:
                 print(f"⚠️  Failed to create issue: {response.status_code} - {response.text}")
@@ -177,7 +286,7 @@ class CryptoIssueMonitor:
     def monitor_repositories(self):
         """Main monitoring function"""
         print(f"\n{'='*60}")
-        print(f"🚀 Crypto Issue Monitor - {datetime.utcnow().isoformat()}")
+        print(f"🚀 Crypto Issue Monitor - Enhanced Edition")
         print(f"{'='*60}\n")
         
         remaining = self.check_rate_limit()
@@ -221,8 +330,8 @@ class CryptoIssueMonitor:
         print(f"\n{'='*60}")
         print(f"📊 Summary:")
         print(f"   - Matching issues found: {total_issues_found}")
-        print(f"   - Issues created in target repo: {total_issues_created}")
-        print(f"   - Total tracked issues: {len(self.processed_issues)}")
+        print(f"   - Issues created: {total_issues_created}")
+        print(f"   - Total tracked: {len(self.processed_issues)}")
         print(f"{'='*60}\n")
     
     def search_github_for_crypto_issues(self, max_results: int = 30):
@@ -254,7 +363,7 @@ class CryptoIssueMonitor:
                     issue_id = f"{repo}#{issue['number']}"
                     
                     if issue_id not in self.processed_issues and self.matches_criteria(issue):
-                        print(f"   ✨ Match! {repo}: #{issue['number']} - {issue['title'][:40]}")
+                        print(f"   ✨ Match! {repo}: #{issue['number']}")
                         created = self.create_issue_in_target_repo(issue, repo)
                         if created:
                             created_count += 1

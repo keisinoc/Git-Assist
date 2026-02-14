@@ -1,13 +1,14 @@
 {
   "monitored_repos": [
     "ethereum/go-ethereum",
+    "juanroyongji/Support",
     "solana-labs/solana",
     "yjtsaie/support",
     "bnb-chain/bsc",
     "cosmos/cosmos-sdk",
     "polkadot-js/api",
     "uniswap/v3-core",
-    "juanroyongji/Support",
+    "cake-tech/cake_wallet",
     "aave/aave-v3-core",
     "compound-finance/compound-protocol",
     "MakerDAO/dss",

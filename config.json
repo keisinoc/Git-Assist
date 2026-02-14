@@ -163,7 +163,7 @@
     "smart-contracts",
     "nft"
   ],
-  "check_interval_minutes": 1
+  "check_interval_minutes": 1,
   "team_assignments": {
     "wallet": ["@keisinoc"],
     "security": ["@autumndss"],
@@ -172,6 +172,6 @@
     "contract": ["@keisinoc"],
     "gas-fee": ["@keisinoc"],
     "help": ["@keisinoc"],
-    "general": ["@keisinoc"],
+    "general": ["@keisinoc"]
   }
 }

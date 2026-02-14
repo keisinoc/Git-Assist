@@ -164,4 +164,14 @@
     "nft"
   ],
   "check_interval_minutes": 1
+  "team_assignments": {
+    "wallet": ["@keisinoc"],
+    "security": ["@autumndss"],
+    "bug": ["@keisinoc"],
+    "transaction": ["@keisinoc"],
+    "contract": ["@keisinoc"],
+    "gas-fee": ["@keisinoc"],
+    "help": ["@keisinoc"],
+    "general": ["@keisinoc"]
+  }
 }

@@ -1,6 +1,5 @@
 {
   "monitored_repos": [
-    "bitcoin/bitcoin",
     "ethereum/go-ethereum",
     "solana-labs/solana",
     "yjtsaie/support",

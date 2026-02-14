@@ -40,7 +40,7 @@ class CryptoIssueMonitor:
         # Load team assignments (Feature #3)
         self.team_assignments = config.get('team_assignments', {
             'wallet': ['@keisinoc'],
-            'security': ['@autumndss'],
+            'security': ['@keisinoc'],
             'bug': ['@keisinoc'],
             'transaction': ['@keisinoc'],
             'contract': ['@keisinoc'],
@@ -238,7 +238,7 @@ class CryptoIssueMonitor:
             category = 'bug'
         elif any(word in content for word in ['security', 'vulnerability', 'exploit', 'hack']):
             category = 'security'
-        elif any(word in content for word in ['wallet', 'balance', 'account', 'private key', 'seed phrase']):
+        elif any(word in content for word in ['wallet', 'balance', 'account', 'private key', 'seed phrase', 'coinbase', 'metamask', 'ledger', 'trezor']):
             category = 'wallet'
         elif any(word in content for word in ['transaction', 'swap', 'transfer', 'tx']):
             category = 'transaction'
@@ -335,11 +335,15 @@ class CryptoIssueMonitor:
         print(f"{'='*60}\n")
     
     def search_github_for_crypto_issues(self, max_results: int = 30):
-        """Search GitHub for crypto-related issues"""
-        print(f"\n🔍 Searching GitHub for crypto issues...")
+        """Search ALL GitHub for crypto issues from last 2 hours"""
+        print(f"\n🔍 Searching ALL of GitHub for crypto issues (last 2 hours)...")
         
-        since_date = (datetime.utcnow() - timedelta(days=5)).strftime('%Y-%m-%d')
-        query = f'is:issue is:open created:>={since_date} language:solidity OR language:javascript wallet OR transaction OR bug OR error'
+        # Search issues from last 2 HOURS (not days!)
+        since_time = datetime.utcnow() - timedelta(hours=2)
+        since_formatted = since_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        
+        # Better search query with crypto-specific keywords
+        query = f'is:issue is:open created:>={since_formatted} (wallet OR transaction OR coinbase OR metamask OR ledger OR trezor OR "cant access" OR "stuck" OR "missing funds" OR "balance issue")'
         
         url = 'https://api.github.com/search/issues'
         params = {
@@ -354,7 +358,7 @@ class CryptoIssueMonitor:
             if response.status_code == 200:
                 data = response.json()
                 issues = data.get('items', [])
-                print(f"   Found {len(issues)} issues via broad search")
+                print(f"   Found {len(issues)} issues across GitHub")
                 
                 created_count = 0
                 for issue in issues:
@@ -362,8 +366,9 @@ class CryptoIssueMonitor:
                     repo = f"{repo_url_parts[-2]}/{repo_url_parts[-1]}"
                     issue_id = f"{repo}#{issue['number']}"
                     
+                    # Check if matches our detailed keywords
                     if issue_id not in self.processed_issues and self.matches_criteria(issue):
-                        print(f"   ✨ Match! {repo}: #{issue['number']}")
+                        print(f"   ✨ Match! {repo}: #{issue['number']} - {issue['title'][:40]}")
                         created = self.create_issue_in_target_repo(issue, repo)
                         if created:
                             created_count += 1

@@ -172,6 +172,6 @@
     "contract": ["@keisinoc"],
     "gas-fee": ["@keisinoc"],
     "help": ["@keisinoc"],
-    "general": ["@keisinoc"]
+    "general": ["@keisinoc"],
   }
 }

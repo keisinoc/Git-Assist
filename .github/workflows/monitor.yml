@@ -38,7 +38,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         TARGET_REPO: ${{ github.repository }}
-        USE_GITHUB_SEARCH: 'false'
+        USE_GITHUB_SEARCH: 'true'
       run: |
         python monitor_issues.py
     

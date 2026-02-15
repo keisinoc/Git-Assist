@@ -342,8 +342,8 @@ class CryptoIssueMonitor:
         since_time = datetime.utcnow() - timedelta(hours=2)
         since_formatted = since_time.strftime('%Y-%m-%dT%H:%M:%SZ')
         
-        # Better search query with crypto-specific keywords
-        query = f'is:issue is:open created:>={since_formatted} wallet'
+        # Search ONLY in crypto-related repos by using language filter
+        query = f'is:issue is:open created:>={since_formatted} language:solidity wallet'
         
         url = 'https://api.github.com/search/issues'
         params = {

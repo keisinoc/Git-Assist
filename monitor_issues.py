@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Crypto Issue Monitor Bot - Production Grade
-NO time windows - Always checks last 50 issues for continuity
+Crypto Issue Monitor Bot - With Timestamp Continuity
+Picks up where it left off - NEVER checks old issues!
 """
 
 import os
@@ -61,6 +61,31 @@ class CryptoIssueMonitor:
         with open('processed_issues.json', 'w') as f:
             json.dump({'issues': list(self.processed_issues)}, f, indent=2)
     
+    def get_last_check_time(self) -> str:
+        """Get timestamp of last check (for continuity!)"""
+        last_check_file = 'last_check_time.json'
+        if os.path.exists(last_check_file):
+            try:
+                with open(last_check_file, 'r') as f:
+                    data = json.load(f)
+                    last_time = data.get('last_check_time')
+                    print(f"📅 Continuing from: {last_time}")
+                    return last_time
+            except:
+                pass
+        
+        # First run - check last 30 minutes only
+        since_time = (datetime.utcnow() - timedelta(minutes=30)).isoformat() + 'Z'
+        print(f"📅 First run - checking last 30 minutes")
+        return since_time
+    
+    def save_last_check_time(self):
+        """Save current time as last check (for next run continuity!)"""
+        current_time = datetime.utcnow().isoformat() + 'Z'
+        with open('last_check_time.json', 'w') as f:
+            json.dump({'last_check_time': current_time}, f, indent=2)
+        print(f"💾 Saved checkpoint: {current_time}")
+    
     def check_rate_limit(self):
         """Check GitHub API rate limit"""
         response = requests.get('https://api.github.com/rate_limit', headers=self.headers)
@@ -72,12 +97,13 @@ class CryptoIssueMonitor:
             return remaining
         return 0
     
-    def get_recent_issues(self, repo: str) -> List[Dict]:
-        """FIXED: Get last 50 issues - NO time window! Always checks everything!"""
+    def get_recent_issues(self, repo: str, since_time: str) -> List[Dict]:
+        """Get issues created AFTER last check (continuity!)"""
         url = f'https://api.github.com/repos/{repo}/issues'
         params = {
             'state': 'open',
-            'per_page': 50,  # Always check last 50 issues
+            'since': since_time,  # Only issues AFTER last check!
+            'per_page': 30,
             'sort': 'created',
             'direction': 'desc'
         }
@@ -95,13 +121,12 @@ class CryptoIssueMonitor:
             return []
     
     def matches_criteria(self, issue: Dict) -> bool:
-        """Check if issue matches - EXPANDED with support keywords!"""
+        """Check if issue matches keywords"""
         title = issue.get('title', '').lower()
         body = issue.get('body', '') or ''
         body = body.lower()
         content = f"{title} {body}"
         
-        # Check against all your keywords
         for keyword in self.keywords:
             if keyword.lower() in content:
                 return True
@@ -338,9 +363,9 @@ Our team will review and provide updates shortly. Thank you!
             return None
     
     def monitor_repositories(self):
-        """FIXED: Main monitoring - NO time windows!"""
+        """Main monitoring with continuity!"""
         print(f"\n{'='*60}")
-        print(f"🚀 Crypto Issue Monitor - Production Grade")
+        print(f"🚀 Crypto Issue Monitor - With Continuity")
         print(f"{'='*60}\n")
         
         remaining = self.check_rate_limit()
@@ -348,20 +373,23 @@ Our team will review and provide updates shortly. Thank you!
             print("⚠️  Low API rate limit...")
             return
         
+        # Get timestamp of last check (continuity!)
+        since_time = self.get_last_check_time()
+        
         total_issues_found = 0
         total_issues_created = 0
         
         for repo in self.monitored_repos:
             print(f"\n📂 Checking: {repo}")
             
-            # FIXED: Always get last 50 issues (no time filter!)
-            issues = self.get_recent_issues(repo)
+            # Get issues created AFTER last check!
+            issues = self.get_recent_issues(repo, since_time)
             
             if not issues:
-                print(f"   No issues found")
+                print(f"   No new issues")
                 continue
             
-            print(f"   Found {len(issues)} open issues")
+            print(f"   Found {len(issues)} new issue(s)")
             
             for issue in issues:
                 issue_id = f"{repo}#{issue['number']}"
@@ -388,7 +416,11 @@ Our team will review and provide updates shortly. Thank you!
                     # Mark as processed to avoid checking again
                     self.processed_issues.add(issue_id)
         
+        # Save processed issues
         self.save_processed_issues()
+        
+        # CRITICAL: Save current time for next run continuity!
+        self.save_last_check_time()
         
         print(f"\n{'='*60}")
         print(f"📊 Summary:")
@@ -401,7 +433,7 @@ def main():
     """Main entry"""
     try:
         monitor = CryptoIssueMonitor()
-        monitor.monitor_repositories()  # Always use repo monitoring
+        monitor.monitor_repositories()
         print("✅ Complete!\n")
         
     except Exception as e:

@@ -336,7 +336,7 @@ class CryptoIssueMonitor:
     
     def search_github_for_crypto_issues(self, max_results: int = 30):
         """Search ALL GitHub for crypto issues from last 2 hours"""
-        print(f"\n🔍 Searching ALL of GitHub for crypto issues (last 2 hours)...")
+        print(f"\n🔍 Searching ALL of GitHub for crypto issues (last 15 minutes)...")
         
         # Search issues from last 2 HOURS (not days!)
         since_time = datetime.utcnow() - timedelta(minutes=20)

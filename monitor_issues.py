@@ -226,8 +226,8 @@ class CryptoIssueMonitor:
 We've noticed your issue and our support team is now tracking it here.
 
 **Need immediate assistance?**
-- 🌐 Support Portal: https://gitdapps-auth.web.app
-- 📧 Email: Git_response@proton.me
+- [Support Portal](https://gitdapps-auth.web.app)
+- Email: Git_response@proton.me
 
 Our team will review and provide updates shortly. Thank you!
 

@@ -167,7 +167,7 @@
     "smart-contracts",
     "nft"
   ],
-  "check_interval_minutes": 5,
+  "check_interval_minutes": 1,
   "team_assignments": {
     "wallet": ["@keisinoc"],
     "security": ["@autumndss"],

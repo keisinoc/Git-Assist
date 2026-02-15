@@ -339,7 +339,7 @@ class CryptoIssueMonitor:
         print(f"\n🔍 Searching ALL of GitHub for crypto issues (last 2 hours)...")
         
         # Search issues from last 2 HOURS (not days!)
-        since_time = datetime.utcnow() - timedelta(hours=2)
+        since_time = datetime.utcnow() - timedelta(minutes=20)
         since_formatted = since_time.strftime('%Y-%m-%dT%H:%M:%SZ')
         
         # Search ONLY in crypto-related repos by using language filter

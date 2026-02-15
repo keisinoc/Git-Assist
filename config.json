@@ -5,6 +5,7 @@
     "solana-labs/solana",
     "yjtsaie/support",
     "bnb-chain/bsc",
+    "Snowfork/snowbridge-app",
     "cosmos/cosmos-sdk",
     "polkadot-js/api",
     "uniswap/v3-core",

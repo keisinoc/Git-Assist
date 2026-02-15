@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
 Crypto Issue Monitor Bot - Enhanced Edition
-Features: Priority Levels, Duplicate Detection, Auto-Assignment, Real User Tagging
+Features: Priority Levels, Duplicate Detection, Auto-Assignment, Real Owner Tagging
 """
 
 import os
 import json
 import time
+import re
 from datetime import datetime, timedelta
 import requests
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Optional
 from difflib import SequenceMatcher
 
 class CryptoIssueMonitor:
@@ -37,10 +38,9 @@ class CryptoIssueMonitor:
         self.topics = config.get('topics', [])
         self.check_interval_minutes = config.get('check_interval_minutes', 5)
         
-        # Load team assignments
         self.team_assignments = config.get('team_assignments', {
             'wallet': ['@keisinoc'],
-            'security': ['@keisinoc'],
+            'security': ['@autumndss'],
             'bug': ['@keisinoc'],
             'transaction': ['@keisinoc'],
             'contract': ['@keisinoc'],
@@ -111,7 +111,7 @@ class CryptoIssueMonitor:
         return False
     
     def detect_priority(self, issue: Dict) -> str:
-        """FEATURE #1: Detect priority level based on keywords"""
+        """FEATURE #1: Detect priority level"""
         title = issue.get('title', '').lower()
         body = (issue.get('body', '') or '').lower()
         content = f"{title} {body}"
@@ -132,14 +132,9 @@ class CryptoIssueMonitor:
         return SequenceMatcher(None, text1.lower(), text2.lower()).ratio()
     
     def check_for_duplicates(self, issue_title: str, issue_body: str) -> List[Dict]:
-        """FEATURE #4: Check for duplicate/similar issues in target repo"""
+        """FEATURE #4: Check for duplicates"""
         url = f'https://api.github.com/repos/{self.target_repo}/issues'
-        params = {
-            'state': 'open',
-            'per_page': 50,
-            'sort': 'created',
-            'direction': 'desc'
-        }
+        params = {'state': 'open', 'per_page': 50, 'sort': 'created', 'direction': 'desc'}
         
         try:
             response = requests.get(url, headers=self.headers, params=params, timeout=10)
@@ -164,18 +159,78 @@ class CryptoIssueMonitor:
             return []
     
     def get_assignee_for_category(self, category: str) -> str:
-        """FEATURE #7: Get team member to assign based on issue category"""
+        """FEATURE #7: Get assignee"""
         assignees = self.team_assignments.get(category, self.team_assignments.get('general', []))
         return assignees[0] if assignees else None
     
-    def mention_reporter_in_our_issue(self, our_issue_number: int, reporter_username: str, source_repo: str):
-        """NEW FEATURE: Tag the original reporter in our issue so they get notified!"""
+    def find_real_issue_owner(self, issue_body: str) -> Optional[str]:
+        """NEW: Find the REAL issue owner from @mentions in body"""
+        if not issue_body:
+            return None
+        
+        # Look for @mentions in the issue body
+        mentions = re.findall(r'@([a-zA-Z0-9_-]+)', issue_body)
+        
+        if mentions:
+            # Return the FIRST @mention (usually the real owner)
+            real_owner = mentions[0]
+            print(f"   🔍 Found real owner: @{real_owner}")
+            return real_owner
+        
+        return None
+    
+    def get_original_issue_owner(self, issue_url: str) -> Optional[str]:
+        """NEW: Fetch original issue and get the real creator"""
+        # Extract repo and issue number from URL
+        # Example: https://github.com/owner/repo/issues/123
+        match = re.search(r'github\.com/([^/]+)/([^/]+)/issues/(\d+)', issue_url)
+        if not match:
+            return None
+        
+        owner, repo, issue_num = match.groups()
+        original_repo = f"{owner}/{repo}"
+        
+        url = f'https://api.github.com/repos/{original_repo}/issues/{issue_num}'
+        
+        try:
+            response = requests.get(url, headers=self.headers, timeout=10)
+            if response.status_code == 200:
+                original_issue = response.json()
+                real_owner = original_issue['user']['login']
+                print(f"   🎯 Found REAL owner from original: @{real_owner}")
+                return real_owner
+            return None
+        except Exception as e:
+            print(f"   ⚠️  Could not fetch original: {str(e)}")
+            return None
+    
+    def find_real_owner(self, issue: Dict) -> str:
+        """NEW: Find the REAL issue owner (priority: original issue > @mentions > reporter)"""
+        issue_body = issue.get('body', '') or ''
+        
+        # Strategy 1: Look for GitHub issue links in the body
+        github_links = re.findall(r'https://github\.com/[^/]+/[^/]+/issues/\d+', issue_body)
+        if github_links:
+            # Try to fetch the original issue
+            real_owner = self.get_original_issue_owner(github_links[0])
+            if real_owner:
+                return real_owner
+        
+        # Strategy 2: Look for @mentions in body (first mention is usually real owner)
+        real_owner = self.find_real_issue_owner(issue_body)
+        if real_owner:
+            return real_owner
+        
+        # Strategy 3: Fall back to reporter (current issue creator)
+        return issue['user']['login']
+    
+    def mention_real_owner_in_our_issue(self, our_issue_number: int, real_owner: str, source_repo: str):
+        """NEW: Tag the REAL owner (not the reporter!)"""
         url = f'https://api.github.com/repos/{self.target_repo}/issues/{our_issue_number}/comments'
         
-        # Tag them directly - this triggers GitHub notification!
-        comment_body = f"""👋 Hi @{reporter_username}!
+        comment_body = f"""👋 Hi @{real_owner}!
 
-We've imported your issue from {source_repo} and our support team is now tracking it here.
+We've noticed your issue and our support team is now tracking it here.
 
 **Need immediate assistance?**
 - 🌐 Support Portal: https://gitdapps-auth.web.app
@@ -190,23 +245,26 @@ Our team will review and provide updates shortly. Thank you!
         try:
             response = requests.post(url, headers=self.headers, json=payload, timeout=10)
             if response.status_code == 201:
-                print(f"   🔔 Tagged @{reporter_username} - Notification sent!")
+                print(f"   🔔 Tagged REAL owner @{real_owner} - Notification sent!")
                 return True
             else:
-                print(f"   ⚠️  Could not tag reporter: {response.status_code}")
+                print(f"   ⚠️  Could not tag: {response.status_code}")
                 return False
         except Exception as e:
-            print(f"   ⚠️  Exception tagging reporter: {str(e)}")
+            print(f"   ⚠️  Exception: {str(e)}")
             return False
     
     def create_issue_in_target_repo(self, original_issue: Dict, source_repo: str):
-        """Create issue with enhanced features"""
+        """Create issue with all features"""
         url = f'https://api.github.com/repos/{self.target_repo}/issues'
         
         original_body = original_issue.get('body', '') or '*No description provided*'
         source_url = original_issue['html_url']
         source_user = original_issue['user']['login']
         issue_title = original_issue['title']
+        
+        # Find REAL owner
+        real_owner = self.find_real_owner(original_issue)
         
         priority_label = self.detect_priority(original_issue)
         print(f"   🎯 Priority: {priority_label}")
@@ -223,6 +281,7 @@ Our team will review and provide updates shortly. Thank you!
 
 **Original Issue:** {source_url}  
 **Reported by:** @{source_user}  
+**Real Owner:** @{real_owner}  
 **Created:** {original_issue['created_at']}  
 **Priority:** `{priority_label}`
 
@@ -238,8 +297,7 @@ Our team will review and provide updates shortly. Thank you!
 *Automatically imported and tracked by GitHub Support Infrastructure. Issue will be reviewed and assigned to the appropriate team for resolution.*
 """
         
-        labels = ['auto-detected']
-        labels.append(priority_label)
+        labels = ['auto-detected', priority_label]
         
         title_lower = issue_title.lower()
         body_lower = original_body.lower()
@@ -270,11 +328,7 @@ Our team will review and provide updates shortly. Thank you!
         assignee = self.get_assignee_for_category(category)
         print(f"   👤 Assigned to: {assignee}")
         
-        payload = {
-            'title': f"[AUTO] {issue_title}",
-            'body': new_body,
-            'labels': labels
-        }
+        payload = {'title': f"[AUTO] {issue_title}", 'body': new_body, 'labels': labels}
         
         if assignee and assignee.startswith('@'):
             payload['assignees'] = [assignee[1:]]
@@ -284,35 +338,35 @@ Our team will review and provide updates shortly. Thank you!
             if response.status_code == 201:
                 new_issue = response.json()
                 print(f"✅ Created issue #{new_issue['number']}: {issue_title[:50]}...")
-                return new_issue
+                return {'issue': new_issue, 'real_owner': real_owner}
             else:
-                print(f"⚠️  Failed to create issue: {response.status_code} - {response.text}")
+                print(f"⚠️  Failed: {response.status_code}")
                 return None
         except Exception as e:
-            print(f"⚠️  Exception creating issue: {str(e)}")
+            print(f"⚠️  Exception: {str(e)}")
             return None
     
     def monitor_repositories(self):
-        """Main monitoring function"""
+        """Main monitoring"""
         print(f"\n{'='*60}")
         print(f"🚀 Crypto Issue Monitor - Enhanced Edition")
         print(f"{'='*60}\n")
         
         remaining = self.check_rate_limit()
         if remaining < 100:
-            print("⚠️  Low API rate limit. Waiting for reset...")
+            print("⚠️  Low API rate limit...")
             return
         
         total_issues_found = 0
         total_issues_created = 0
         
         for repo in self.monitored_repos:
-            print(f"\n📂 Checking repository: {repo}")
+            print(f"\n📂 Checking: {repo}")
             
             issues = self.get_recent_issues(repo, since_minutes=self.check_interval_minutes + 5)
             
             if not issues:
-                print(f"   No new issues found")
+                print(f"   No new issues")
                 continue
             
             print(f"   Found {len(issues)} recent issue(s)")
@@ -325,14 +379,18 @@ Our team will review and provide updates shortly. Thank you!
                 
                 if self.matches_criteria(issue):
                     total_issues_found += 1
-                    print(f"   ✨ Match found: #{issue['number']} - {issue['title'][:50]}...")
+                    print(f"   ✨ Match: #{issue['number']}")
                     
                     created = self.create_issue_in_target_repo(issue, repo)
                     if created:
                         total_issues_created += 1
                         self.processed_issues.add(issue_id)
-                        # Tag the reporter so they get notified!
-                        self.mention_reporter_in_our_issue(created['number'], issue['user']['login'], repo)
+                        # Tag REAL owner!
+                        self.mention_real_owner_in_our_issue(
+                            created['issue']['number'],
+                            created['real_owner'],
+                            repo
+                        )
                 else:
                     self.processed_issues.add(issue_id)
         
@@ -340,14 +398,14 @@ Our team will review and provide updates shortly. Thank you!
         
         print(f"\n{'='*60}")
         print(f"📊 Summary:")
-        print(f"   - Matching issues found: {total_issues_found}")
-        print(f"   - Issues created: {total_issues_created}")
-        print(f"   - Total tracked: {len(self.processed_issues)}")
+        print(f"   - Matching: {total_issues_found}")
+        print(f"   - Created: {total_issues_created}")
+        print(f"   - Tracked: {len(self.processed_issues)}")
         print(f"{'='*60}\n")
     
     def search_github_for_crypto_issues(self, max_results: int = 30):
-        """Search ALL GitHub for crypto issues"""
-        print(f"\n🔍 Searching ALL of GitHub for crypto issues (last 15 minutes)...")
+        """Search ALL GitHub"""
+        print(f"\n🔍 Searching ALL of GitHub (last 15 min)...")
         
         since_time = datetime.utcnow() - timedelta(minutes=20)
         since_formatted = since_time.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -355,19 +413,14 @@ Our team will review and provide updates shortly. Thank you!
         query = f'is:issue is:open created:>={since_formatted} language:solidity wallet'
         
         url = 'https://api.github.com/search/issues'
-        params = {
-            'q': query,
-            'sort': 'created',
-            'order': 'desc',
-            'per_page': max_results
-        }
+        params = {'q': query, 'sort': 'created', 'order': 'desc', 'per_page': max_results}
         
         try:
             response = requests.get(url, headers=self.headers, params=params, timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 issues = data.get('items', [])
-                print(f"   Found {len(issues)} issues across GitHub")
+                print(f"   Found {len(issues)} issues")
                 
                 created_count = 0
                 for issue in issues:
@@ -376,13 +429,17 @@ Our team will review and provide updates shortly. Thank you!
                     issue_id = f"{repo}#{issue['number']}"
                     
                     if issue_id not in self.processed_issues and self.matches_criteria(issue):
-                        print(f"   ✨ Match! {repo}: #{issue['number']} - {issue['title'][:40]}")
+                        print(f"   ✨ Match! {repo}: #{issue['number']}")
                         created = self.create_issue_in_target_repo(issue, repo)
                         if created:
                             created_count += 1
                             self.processed_issues.add(issue_id)
-                            # Tag the reporter so they get notified!
-                            self.mention_reporter_in_our_issue(created['number'], issue['user']['login'], repo)
+                            # Tag REAL owner!
+                            self.mention_real_owner_in_our_issue(
+                                created['issue']['number'],
+                                created['real_owner'],
+                                repo
+                            )
                     else:
                         self.processed_issues.add(issue_id)
                 
@@ -391,10 +448,10 @@ Our team will review and provide updates shortly. Thank you!
             else:
                 print(f"   ⚠️  Search failed: {response.status_code}")
         except Exception as e:
-            print(f"   ⚠️  Search exception: {str(e)}")
+            print(f"   ⚠️  Exception: {str(e)}")
 
 def main():
-    """Main entry point"""
+    """Main entry"""
     try:
         monitor = CryptoIssueMonitor()
         
@@ -405,7 +462,7 @@ def main():
         else:
             monitor.monitor_repositories()
         
-        print("✅ Monitoring complete!\n")
+        print("✅ Complete!\n")
         
     except Exception as e:
         print(f"❌ Error: {str(e)}")

@@ -410,7 +410,8 @@ Our team will review and provide updates shortly. Thank you!
         since_time = datetime.utcnow() - timedelta(minutes=45)
         since_formatted = since_time.strftime('%Y-%m-%dT%H:%M:%SZ')
         
-        query = f'is:issue is:open created:>={since_formatted} language:solidity wallet'
+        # Broad crypto search - catches almost everything!
+        query = f'is:issue is:open created:>={since_formatted} (crypto OR wallet OR blockchain OR token OR transaction OR metamask OR coinbase OR ledger OR trezor OR web3 OR defi OR nft OR swap OR bridge OR staking)'
         
         url = 'https://api.github.com/search/issues'
         params = {'q': query, 'sort': 'created', 'order': 'desc', 'per_page': max_results}

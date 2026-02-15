@@ -343,7 +343,7 @@ class CryptoIssueMonitor:
         since_formatted = since_time.strftime('%Y-%m-%dT%H:%M:%SZ')
         
         # Better search query with crypto-specific keywords
-        query = f'is:issue is:open created:>={since_formatted} (wallet OR transaction OR coinbase OR metamask OR ledger OR trezor OR "cant access" OR "stuck" OR "missing funds" OR "balance issue")'
+        query = f'is:issue is:open created:>={since_formatted} wallet'
         
         url = 'https://api.github.com/search/issues'
         params = {

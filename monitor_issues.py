@@ -405,9 +405,9 @@ Our team will review and provide updates shortly. Thank you!
     
     def search_github_for_crypto_issues(self, max_results: int = 30):
         """Search ALL GitHub"""
-        print(f"\n🔍 Searching ALL of GitHub (last 15 min)...")
+        print(f"\n🔍 Searching ALL of GitHub (last 45 min)...")
         
-        since_time = datetime.utcnow() - timedelta(minutes=20)
+        since_time = datetime.utcnow() - timedelta(minutes=45)
         since_formatted = since_time.strftime('%Y-%m-%dT%H:%M:%SZ')
         
         query = f'is:issue is:open created:>={since_formatted} language:solidity wallet'
